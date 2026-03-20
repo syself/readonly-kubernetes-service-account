@@ -4,6 +4,7 @@ Generate YAML for a readonly Kubernetes service account.
 
 ## Usage
 
+<!-- usage:start -->
 ```text
 Usage: readonly-kubernetes-service-account [-o output.yaml] <sa-name>
 This tool creates YAML for a service account, which can read all resources, except secrets.
@@ -17,6 +18,7 @@ Run without installing:
 
 go run github.com/syself/readonly-kubernetes-service-account@latest -o ro-sa.yaml ro-sa
 ```
+<!-- usage:end -->
 
 ## Example
 
