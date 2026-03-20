@@ -26,29 +26,30 @@ fi
 
 usage_text="$(cat "$usage_file")"
 
-cat >"$repo_root/README.md" <<EOF
-# readonly-kubernetes-service-account
-
-Generate YAML for a readonly Kubernetes service account.
-
-## Usage
-
+readonly readme_file="$repo_root/README.md"
+readonly usage_start_marker="<!-- usage:start -->"
+readonly usage_end_marker="<!-- usage:end -->"
+readonly updated_usage_block="$(cat <<EOF
+$usage_start_marker
 \`\`\`text
 $usage_text
 \`\`\`
-
-## Example
-
-\`\`\`bash
-go run . -o readonly-service-account.yaml example-sa
-kubectl apply -f readonly-service-account.yaml
-\`\`\`
-
-## Development
-
-Regenerate this README with:
-
-\`\`\`bash
-./hack/update-readme.sh
-\`\`\`
+$usage_end_marker
 EOF
+)"
+
+if ! grep -Fq "$usage_start_marker" "$readme_file" || ! grep -Fq "$usage_end_marker" "$readme_file"; then
+	echo "README markers not found: $usage_start_marker ... $usage_end_marker" >&2
+	exit 1
+fi
+
+START_MARKER="$usage_start_marker" \
+END_MARKER="$usage_end_marker" \
+UPDATED_USAGE_BLOCK="$updated_usage_block" \
+perl -0pi -e '
+	my $start = quotemeta($ENV{START_MARKER});
+	my $end = quotemeta($ENV{END_MARKER});
+	my $replacement = $ENV{UPDATED_USAGE_BLOCK};
+	my $count = s/$start.*?$end/$replacement/s;
+	die "failed to update Usage section\n" if $count != 1;
+' "$readme_file"

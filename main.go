@@ -169,7 +169,6 @@ func parseArgs(args []string) (options, error) {
 }
 
 func usage() {
-	programName := filepath.Base(os.Args[0])
 	fmt.Fprintf(os.Stderr, `Usage: readonly-kubernetes-service-account [-o output.yaml] <sa-name>
 This tool creates YAML for a service account, which can read all resources, except secrets.
 The SA gets access to all core resources (except secrets), and all non-core API groups.
