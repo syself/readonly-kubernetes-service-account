@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -117,7 +118,7 @@ func Run() error {
 		},
 	}
 
-	fmt.Println("# Created by create-readonly-service-account")
+	fmt.Println("# Created by https://github.com/syself/readonly-kubernetes-service-account")
 	for i, resource := range resources {
 		if i > 0 {
 			fmt.Print("---\n")
@@ -132,10 +133,14 @@ func Run() error {
 }
 
 func usage() {
+	programName := filepath.Base(os.Args[0])
 	fmt.Fprintf(os.Stderr, `Usage: %s <name>
 This tool creates YAML for a service account, which can read all resources, except secrets.
-The SA gets access to al core resources (except secrets), and all non-core API Groups.
-`, os.Args[0])
+The SA gets access to all core resources (except secrets), and all non-core API groups.
+This tool connects to your cluster, discovers which API resources and API groups exist,
+and uses that information to generate a ClusterRole with readonly permissions.
+It does not apply changes to the cluster. It only prints the YAML to stdout.
+`, programName)
 }
 
 func buildReadonlyRules(discoveryClient discovery.DiscoveryInterface) ([]rbacv1.PolicyRule, error) {

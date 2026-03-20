@@ -1,0 +1,30 @@
+name: e2e-kind
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  e2e-kind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.33.1
+
+      - name: Set up kind
+        uses: engineerd/setup-kind@v0.6.2
+        with:
+          version: v0.31.0
+
+      - name: Run kind e2e test
+        run: ./hack/e2e-test-with-kind.sh run
