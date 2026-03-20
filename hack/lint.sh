@@ -6,19 +6,11 @@ set -Eeuo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/.." && pwd)"
 readonly golangci_lint_version="v2.11.3"
-tmpdir=""
-
-if [[ -n ${GOBIN:-} ]]; then
-	readonly gobin="$GOBIN"
-else
-	tmpdir="$(mktemp -d)"
-	readonly gobin="$tmpdir/bin"
-fi
+readonly tmpdir="$(mktemp -d)"
+readonly gobin="$tmpdir/bin"
 
 cleanup() {
-	if [[ -n "$tmpdir" ]]; then
-		rm -rf "$tmpdir"
-	fi
+	rm -rf "$tmpdir"
 }
 
 trap cleanup EXIT
@@ -26,12 +18,8 @@ trap cleanup EXIT
 mkdir -p "$gobin"
 readonly golangci_lint_binary="$gobin/golangci-lint"
 
-if [[ -x "$golangci_lint_binary" ]] && "$golangci_lint_binary" version | grep -Eq "(^| )${golangci_lint_version#v}([[:space:]]|$)|(^| )${golangci_lint_version}([[:space:]]|$)"; then
-	echo "Using cached golangci-lint $golangci_lint_version"
-else
-	echo "Installing golangci-lint $golangci_lint_version"
-	GOBIN="$gobin" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"$golangci_lint_version"
-fi
+echo "Installing golangci-lint $golangci_lint_version"
+GOBIN="$gobin" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"$golangci_lint_version"
 
 echo "Running golangci-lint"
 (

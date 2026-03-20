@@ -11,42 +11,12 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    env:
-      GOBIN: ${{ github.workspace }}/.cache/go/bin
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          cache: false
           go-version-file: go.mod
-      - name: Resolve Go cache paths
-        id: go-cache-paths
-        run: |
-          echo "gomodcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-          echo "gocache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-      - name: Restore Go shared cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ${{ steps.go-cache-paths.outputs.gomodcache }}
-            ${{ steps.go-cache-paths.outputs.gocache }}
-          key: go-shared-${{ runner.os }}-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            go-shared-${{ runner.os }}-
-      - name: Restore Go tool cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.GOBIN }}
-          key: go-tools-${{ runner.os }}-${{ hashFiles('hack/lint.sh') }}
-          restore-keys: |
-            go-tools-${{ runner.os }}-
       - run: ./hack/lint.sh
-      - name: Save Go tool cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.GOBIN }}
-          key: go-tools-${{ runner.os }}-${{ hashFiles('hack/lint.sh') }}
 
   test:
     runs-on: ubuntu-latest
@@ -54,31 +24,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          cache: false
           go-version-file: go.mod
-      - name: Resolve Go cache paths
-        id: go-cache-paths
-        run: |
-          echo "gomodcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-          echo "gocache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-      - name: Restore Go shared cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ${{ steps.go-cache-paths.outputs.gomodcache }}
-            ${{ steps.go-cache-paths.outputs.gocache }}
-          key: go-shared-${{ runner.os }}-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            go-shared-${{ runner.os }}-
       - run: go test ./...
-      - name: Save Go shared cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ${{ steps.go-cache-paths.outputs.gomodcache }}
-            ${{ steps.go-cache-paths.outputs.gocache }}
-          key: go-shared-${{ runner.os }}-${{ hashFiles('go.sum') }}
 
   readme:
     runs-on: ubuntu-latest
@@ -86,21 +33,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          cache: false
           go-version-file: go.mod
-      - name: Resolve Go cache paths
-        id: go-cache-paths
-        run: |
-          echo "gomodcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-          echo "gocache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-      - name: Restore Go shared cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ${{ steps.go-cache-paths.outputs.gomodcache }}
-            ${{ steps.go-cache-paths.outputs.gocache }}
-          key: go-shared-${{ runner.os }}-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            go-shared-${{ runner.os }}-
       - run: ./hack/update-readme.sh
       - run: git diff --exit-code -- README.md
