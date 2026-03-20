@@ -40,7 +40,7 @@ $usage_text
 ## Example
 
 \`\`\`bash
-go run . example-sa > readonly-service-account.yaml
+go run . -o readonly-service-account.yaml example-sa
 kubectl apply -f readonly-service-account.yaml
 \`\`\`
 

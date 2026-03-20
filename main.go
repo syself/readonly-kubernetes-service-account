@@ -2,7 +2,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,14 +35,17 @@ func main() {
 
 var errUsage = errors.New("usage")
 
+type options struct {
+	saName     string
+	outputPath string
+}
+
 // Run executes the command and returns a descriptive error when it fails.
 func Run() error {
-	if len(os.Args) != 2 || strings.HasPrefix(os.Args[1], "-") {
-		usage()
-		return errUsage
+	opts, err := parseArgs(os.Args[1:])
+	if err != nil {
+		return err
 	}
-
-	saName := os.Args[1]
 
 	configLoader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
@@ -63,7 +68,7 @@ func Run() error {
 	}
 
 	roleName := "read-all-except-secrets"
-	bindingName := saName + "-" + roleName
+	bindingName := opts.saName + "-" + roleName
 
 	resources := []any{
 		&corev1.ServiceAccount{
@@ -72,7 +77,7 @@ func Run() error {
 				Kind:       "ServiceAccount",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      saName,
+				Name:      opts.saName,
 				Namespace: saNamespace,
 				Annotations: map[string]string{
 					"created-by": "create-readonly-service-account",
@@ -111,36 +116,86 @@ func Run() error {
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
-					Name:      saName,
+					Name:      opts.saName,
 					Namespace: saNamespace,
 				},
 			},
 		},
 	}
 
-	fmt.Println("# Created by https://github.com/syself/readonly-kubernetes-service-account")
-	for i, resource := range resources {
-		if i > 0 {
-			fmt.Print("---\n")
-		}
-		data, err := yaml.Marshal(resource)
-		if err != nil {
-			return fmt.Errorf("marshal resource yaml: %w", err)
-		}
-		fmt.Print(string(data))
+	data, err := renderResources(resources)
+	if err != nil {
+		return err
 	}
+
+	if opts.outputPath != "" {
+		if err := os.WriteFile(opts.outputPath, data, 0o644); err != nil {
+			return fmt.Errorf("write output file: %w", err)
+		}
+		return nil
+	}
+
+	fmt.Print(string(data))
 	return nil
+}
+
+func parseArgs(args []string) (options, error) {
+	programName := filepath.Base(os.Args[0])
+	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	outputPath := fs.String("o", "", "write YAML to file instead of stdout")
+	fs.Usage = func() {
+		usage()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return options{}, errUsage
+		}
+		usage()
+		return options{}, errUsage
+	}
+
+	if len(fs.Args()) != 1 {
+		usage()
+		return options{}, errUsage
+	}
+
+	return options{
+		saName:     fs.Args()[0],
+		outputPath: *outputPath,
+	}, nil
 }
 
 func usage() {
 	programName := filepath.Base(os.Args[0])
-	fmt.Fprintf(os.Stderr, `Usage: %s <name>
+	fmt.Fprintf(os.Stderr, `Usage: %s [-o output.yaml] <name>
 This tool creates YAML for a service account, which can read all resources, except secrets.
 The SA gets access to all core resources (except secrets), and all non-core API groups.
 This tool connects to your cluster, discovers which API resources and API groups exist,
 and uses that information to generate a ClusterRole with readonly permissions.
-It does not apply changes to the cluster. It only prints the YAML to stdout.
+It does not apply changes to the cluster.
+By default it prints the YAML to stdout. With -o it writes the YAML to a file.
 `, programName)
+}
+
+func renderResources(resources []any) ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteString("# Created by https://github.com/syself/readonly-kubernetes-service-account\n")
+	for i, resource := range resources {
+		if i > 0 {
+			buf.WriteString("---\n")
+		}
+		data, err := yaml.Marshal(resource)
+		if err != nil {
+			return nil, fmt.Errorf("marshal resource yaml: %w", err)
+		}
+		buf.Write(data)
+	}
+
+	return buf.Bytes(), nil
 }
 
 func buildReadonlyRules(discoveryClient discovery.DiscoveryInterface) ([]rbacv1.PolicyRule, error) {

@@ -1,4 +1,4 @@
-# Created by create-readonly-service-account
+# Created by https://github.com/syself/readonly-kubernetes-service-account
 apiVersion: v1
 kind: ServiceAccount
 metadata:
