@@ -30,17 +30,6 @@ go run github.com/syself/readonly-kubernetes-service-account@latest -o ro-sa.yam
 ```
 <!-- usage:end -->
 
-## Example
+## Feedback?
 
-```bash
-go run . -o readonly-service-account.yaml example-sa
-kubectl apply -f readonly-service-account.yaml
-```
-
-## Development
-
-Regenerate this README with:
-
-```bash
-./hack/update-readme.sh
-```
+Please create an issue if you have an idea for how we could improve this tool.
