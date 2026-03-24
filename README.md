@@ -27,14 +27,6 @@ Flags:
 Run without installing:
 
 go run github.com/syself/readonly-kubernetes-service-account@latest -o ro-sa.yaml ro-sa
-
-Generate output like ro-orig.yaml:
-
-go run . \
-  --namespace mgt-system \
-  --role-name autopilot:autopilot-readers \
-  --binding-name autopilot-reader \
-  autopilot-reader
 ```
 <!-- usage:end -->
 
