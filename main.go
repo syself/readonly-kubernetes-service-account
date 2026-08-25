@@ -1,5 +1,6 @@
-// Command readonly-kubernetes-service-account prints YAML for a readonly Kubernetes
-// service account, and can create a kubeconfig which uses that service account.
+// Command readonly-kubernetes-service-account has two subcommands: "yaml" prints the
+// YAML for a readonly Kubernetes service account, and "kubeconfig" creates a kubeconfig
+// which uses that service account.
 package main
 
 import (
@@ -31,6 +32,7 @@ import (
 
 const (
 	saNamespace       = "default"
+	yamlCmdName       = "yaml"
 	kubeconfigCmdName = "kubeconfig"
 
 	// rootCACertConfigMap exists in every namespace and holds the CA certificate of the
@@ -476,11 +478,9 @@ func renderKubeconfig(config *clientcmdapi.Config) ([]byte, error) {
 
 func parseArgs(args []string, stderr io.Writer) (parsedArgs, error) {
 	var parsed parsedArgs
-	var rootCmd *cobra.Command
 
-	rootCmd = newRootCmd(
+	rootCmd := newRootCmd(
 		func(opts options) error {
-			opts.argsComment = formatArgsComment(rootCmd)
 			parsed.yaml = &opts
 			return nil
 		},
@@ -495,6 +495,9 @@ func parseArgs(args []string, stderr io.Writer) (parsedArgs, error) {
 
 	// The subcommand which cobra called, which is the one whose usage we want to print.
 	calledCmd, err := rootCmd.ExecuteC()
+	if calledCmd == nil {
+		calledCmd = rootCmd
+	}
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "error: %v\n\n", err)
 		if _, writeErr := fmt.Fprint(stderr, usageFor(calledCmd)); writeErr != nil {
@@ -551,33 +554,54 @@ func shellQuote(arg string) string {
 
 // usageFor returns the usage text of the command which cobra called.
 func usageFor(cmd *cobra.Command) string {
-	if cmd != nil && cmd.Name() == kubeconfigCmdName {
+	switch cmd.Name() {
+	case yamlCmdName:
+		return yamlUsageText(cmd)
+	case kubeconfigCmdName:
 		return kubeconfigUsageText(cmd)
+	default:
+		return rootUsageText(cmd)
 	}
-	return usageText(cmd)
 }
 
-func usageText(cmd *cobra.Command) string {
-	return fmt.Sprintf(`Usage: %s [flags] <sa-name>
-This tool creates YAML for a service account, which can read all resources, except secrets.
+func rootUsageText(cmd *cobra.Command) string {
+	return fmt.Sprintf(`Usage: %s <command> [flags] <sa-name>
+Creates a Kubernetes service account which can read everything, except secrets.
+
+Commands:
+  %-10s print the YAML for the ServiceAccount, the ClusterRole and the binding
+  %-10s create a kubeconfig which uses the service account
+
+Run "%s <command> --help" to see the flags of a command.
+
+Run without installing:
+
+go run github.com/syself/readonly-kubernetes-service-account@latest yaml -o ro-sa.yaml ro-sa
+`, cmd.Name(), yamlCmdName, kubeconfigCmdName, cmd.Name())
+}
+
+func yamlUsageText(cmd *cobra.Command) string {
+	return fmt.Sprintf(`Usage: %s %s [flags] <sa-name>
+Prints the YAML for a service account which can read all resources, except secrets:
+a ServiceAccount, a ClusterRole and a ClusterRoleBinding.
 The SA gets access to all core resources (except secrets), and all non-core API groups.
 Exec, attach, portforward and proxy are left out, because they would give access to
 the inside of a pod, and that includes the secrets the pod uses.
-This tool connects to your cluster, discovers which API resources and API groups exist,
-and uses that information to generate a ClusterRole with readonly permissions.
-This command does not apply changes to the cluster, the kubeconfig subcommand can.
+This command connects to your cluster, discovers which API resources and API groups
+exist, and uses that information to generate the ClusterRole.
+It changes nothing in the cluster. Apply the YAML with kubectl, or let the %s
+command do that for you with --apply.
 By default it prints the YAML to stdout. With -o it writes the YAML to a file.
 
 Flags:
 %s
 
-Commands:
-  kubeconfig  create a kubeconfig which uses the service account (see "%s kubeconfig")
+Example:
 
-Run without installing:
-
-go run github.com/syself/readonly-kubernetes-service-account@latest -o ro-sa.yaml ro-sa
-`, cmd.Name(), strings.TrimRight(cmd.Flags().FlagUsagesWrapped(80), "\n"), cmd.Name())
+  %s %s -o ro-sa.yaml ro-sa
+`, cmd.Root().Name(), cmd.Name(), kubeconfigCmdName,
+		strings.TrimRight(cmd.Flags().FlagUsagesWrapped(80), "\n"),
+		cmd.Root().Name(), cmd.Name())
 }
 
 func kubeconfigUsageText(cmd *cobra.Command) string {
@@ -605,17 +629,39 @@ Examples:
 func newRootCmd(runYAMLCmd func(options) error, runKubeconfigCmd func(kubeconfigOptions) error) *cobra.Command {
 	programName := filepath.Base(os.Args[0])
 
+	// The root command has no work of its own. Without a subcommand it prints the help.
+	cmd := &cobra.Command{
+		Use:           programName + " <command> [flags] <sa-name>",
+		Short:         "Create a Kubernetes service account which can read everything, except secrets.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), usageFor(cmd))
+	})
+
+	cmd.AddCommand(newYAMLCmd(runYAMLCmd))
+	cmd.AddCommand(newKubeconfigCmd(runKubeconfigCmd))
+
+	return cmd
+}
+
+func newYAMLCmd(run func(options) error) *cobra.Command {
 	opts := options{}
 	cmd := &cobra.Command{
-		Use:           programName + " [flags] <sa-name>",
-		Short:         "Generate YAML for a readonly Kubernetes service account.",
+		Use:           yamlCmdName + " [flags] <sa-name>",
+		Short:         "Print the YAML for the ServiceAccount, the ClusterRole and the binding.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Args:          cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.saName = args[0]
 			opts.bindingName = resolveBindingName(opts.saName, opts.roleName, opts.bindingName)
-			return runYAMLCmd(opts)
+			opts.argsComment = formatArgsComment(cmd)
+			if run == nil {
+				return errors.New("no handler for the yaml command")
+			}
+			return run(opts)
 		},
 	}
 
@@ -623,11 +669,10 @@ func newRootCmd(runYAMLCmd func(options) error, runKubeconfigCmd func(kubeconfig
 	cmd.Flags().StringVar(&opts.namespace, "namespace", saNamespace, "namespace for the ServiceAccount subject")
 	cmd.Flags().StringVar(&opts.roleName, "role-name", "read-all-except-secrets", "name of the generated ClusterRole")
 	cmd.Flags().StringVar(&opts.bindingName, "binding-name", "", "name of the generated ClusterRoleBinding (default: <sa-name>-<role-name>)")
-	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), usageFor(cmd))
-	})
 
-	cmd.AddCommand(newKubeconfigCmd(runKubeconfigCmd))
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), yamlUsageText(cmd))
+	})
 
 	return cmd
 }

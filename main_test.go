@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/rest"
 )
@@ -15,7 +14,7 @@ import (
 func TestParseArgsDefaults(t *testing.T) {
 	t.Parallel()
 
-	parsed, err := parseArgs([]string{"example-sa"}, io.Discard)
+	parsed, err := parseArgs([]string{"yaml", "example-sa"}, io.Discard)
 	if err != nil {
 		t.Fatalf("parseArgs() error = %v", err)
 	}
@@ -45,6 +44,7 @@ func TestParseArgsCustomFlags(t *testing.T) {
 	t.Parallel()
 
 	parsed, err := parseArgs([]string{
+		"yaml",
 		"--namespace", "mgt-system",
 		"--role-name", "autopilot:autopilot-readers",
 		"--binding-name", "autopilot-reader",
@@ -134,21 +134,37 @@ func TestRenderResourcesOmitsArgsLineWhenEmpty(t *testing.T) {
 func TestFormatArgsCommentQuotesFlagValues(t *testing.T) {
 	t.Parallel()
 
-	var got string
-	var cmd *cobra.Command
-	cmd = newRootCmd(func(opts options) error {
-		got = formatArgsComment(cmd)
-		return nil
-	}, nil)
-	cmd.SetArgs([]string{"--output", "reader team.yaml", "--binding-name", "name'withquote", "example-sa"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("cmd.Execute() error = %v", err)
+	parsed, err := parseArgs([]string{
+		"yaml",
+		"--output", "reader team.yaml",
+		"--binding-name", "name'withquote",
+		"example-sa",
+	}, io.Discard)
+	if err != nil {
+		t.Fatalf("parseArgs() error = %v", err)
+	}
+	if parsed.yaml == nil {
+		t.Fatal("parseArgs() did not parse the YAML command")
 	}
 
 	want := "# Args: --output 'reader team.yaml' --binding-name 'name'\"'\"'withquote'\n"
-	if got != want {
-		t.Fatalf("formatArgsComment() = %q, want %q", got, want)
+	if parsed.yaml.argsComment != want {
+		t.Fatalf("argsComment = %q, want %q", parsed.yaml.argsComment, want)
+	}
+}
+
+func TestParseArgsNeedsACommand(t *testing.T) {
+	t.Parallel()
+
+	for name, args := range map[string][]string{
+		"no arguments at all":            {},
+		"only the help flag":             {"--help"},
+		"the old form without a command": {"example-sa"},
+		"an unknown command":             {"kubecfg", "example-sa"},
+	} {
+		if _, err := parseArgs(args, io.Discard); !errors.Is(err, errUsage) {
+			t.Errorf("parseArgs(%s) error = %v, want errUsage", name, err)
+		}
 	}
 }
 

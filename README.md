@@ -1,45 +1,78 @@
 # readonly-kubernetes-service-account
 
-Generate YAML for a readonly Kubernetes service account, and a kubeconfig which uses it.
+Create a Kubernetes service account which can read everything, except secrets, and a
+kubeconfig which uses it.
+
+The tool has two commands:
+
+* `yaml` prints the YAML for the ServiceAccount, the ClusterRole and the ClusterRoleBinding.
+* `kubeconfig` creates a kubeconfig which uses the service account.
 
 ## Usage
 
 <!-- usage:start -->
 ```text
-Usage: readonly-kubernetes-service-account [flags] <sa-name>
-This tool creates YAML for a service account, which can read all resources, except secrets.
+Usage: readonly-kubernetes-service-account <command> [flags] <sa-name>
+Creates a Kubernetes service account which can read everything, except secrets.
+
+Commands:
+  yaml       print the YAML for the ServiceAccount, the ClusterRole and the binding
+  kubeconfig create a kubeconfig which uses the service account
+
+Run "readonly-kubernetes-service-account <command> --help" to see the flags of a command.
+
+Run without installing:
+
+go run github.com/syself/readonly-kubernetes-service-account@latest yaml -o ro-sa.yaml ro-sa
+```
+<!-- usage:end -->
+
+## The yaml command
+
+```bash
+go run github.com/syself/readonly-kubernetes-service-account@latest \
+    yaml -o ro-sa.yaml ro-sa
+kubectl apply -f ro-sa.yaml
+```
+
+The command connects to your cluster to see which API groups and resources exist, but it
+changes nothing there. Up to version v0.0.3 you called the tool without the `yaml` word.
+
+<!-- yaml-usage:start -->
+```text
+Usage: readonly-kubernetes-service-account yaml [flags] <sa-name>
+Prints the YAML for a service account which can read all resources, except secrets:
+a ServiceAccount, a ClusterRole and a ClusterRoleBinding.
 The SA gets access to all core resources (except secrets), and all non-core API groups.
 Exec, attach, portforward and proxy are left out, because they would give access to
 the inside of a pod, and that includes the secrets the pod uses.
-This tool connects to your cluster, discovers which API resources and API groups exist,
-and uses that information to generate a ClusterRole with readonly permissions.
-This command does not apply changes to the cluster, the kubeconfig subcommand can.
+This command connects to your cluster, discovers which API resources and API groups
+exist, and uses that information to generate the ClusterRole.
+It changes nothing in the cluster. Apply the YAML with kubectl, or let the kubeconfig
+command do that for you with --apply.
 By default it prints the YAML to stdout. With -o it writes the YAML to a file.
 
 Flags:
       --binding-name string   name of the generated ClusterRoleBinding
                               (default: <sa-name>-<role-name>)
-  -h, --help                  help for readonly-kubernetes-service-account
+  -h, --help                  help for yaml
       --namespace string      namespace for the ServiceAccount subject
                               (default "default")
   -o, --output string         write YAML to file instead of stdout
       --role-name string      name of the generated ClusterRole (default
                               "read-all-except-secrets")
 
-Commands:
-  kubeconfig  create a kubeconfig which uses the service account (see "readonly-kubernetes-service-account kubeconfig")
+Example:
 
-Run without installing:
-
-go run github.com/syself/readonly-kubernetes-service-account@latest -o ro-sa.yaml ro-sa
+  readonly-kubernetes-service-account yaml -o ro-sa.yaml ro-sa
 ```
-<!-- usage:end -->
+<!-- yaml-usage:end -->
 
-## Create a kubeconfig
+## The kubeconfig command
 
 Most people do not want the YAML, they want a kubeconfig which uses the service account.
-The `kubeconfig` subcommand creates one. It reads your current kubeconfig to find the
-cluster, so use it while you are still connected as a user who may create tokens.
+This command creates one. It reads your current kubeconfig to find the cluster, so use it
+while you are still connected as a user who may create tokens.
 
 Create the service account, the ClusterRole and the binding, and write a kubeconfig with
 a token which never expires:
@@ -53,7 +86,6 @@ If you applied the YAML yourself, leave out `--apply`. If a token for one day is
 use `--duration 24h` instead of `--long-lived`:
 
 ```bash
-kubectl apply -f ro-sa.yaml
 go run github.com/syself/readonly-kubernetes-service-account@latest \
     kubeconfig --duration 24h -o ro-sa.kubeconfig ro-sa
 ```

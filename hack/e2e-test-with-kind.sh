@@ -7,7 +7,7 @@ usage() {
 	cat >&2 <<'EOF'
 Usage: ./hack/e2e-test-with-kind.sh run
 
-Creates a temporary kind cluster with a random name, runs `go run . e2e-readonly-sa`
+Creates a temporary kind cluster with a random name, runs `go run . yaml e2e-readonly-sa`
 against that cluster, and compares the generated YAML with the checked-in fixture at
 `hack/e2e-test-with-kind/expected.yaml`.
 
@@ -50,10 +50,10 @@ kind create cluster \
 	--wait 120s \
 	--kubeconfig "$kubeconfig_file"
 
-echo "Generating YAML with go run . $service_account_name"
+echo "Generating YAML with go run . yaml $service_account_name"
 (
 	cd "$repo_root"
-	KUBECONFIG="$kubeconfig_file" go run . "$service_account_name" >"$actual_file"
+	KUBECONFIG="$kubeconfig_file" go run . yaml "$service_account_name" >"$actual_file"
 )
 
 echo "Comparing generated YAML with $expected_file"
