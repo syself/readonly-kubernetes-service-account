@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -25,10 +25,10 @@ jobs:
         with:
           version: v1.33.1
 
+      # The setup-kind action is not maintained any more, and it also creates a
+      # cluster which this test does not use. The test script creates its own.
       - name: Set up kind
-        uses: engineerd/setup-kind@v0.6.2
-        with:
-          version: v0.31.0
+        run: go install sigs.k8s.io/kind@v0.31.0
 
       - name: Run kind e2e test
         run: ./hack/e2e-test-with-kind.sh run
