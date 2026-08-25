@@ -60,4 +60,5 @@ EOF
 }
 
 replace_block usage "$(usage_text)"
+replace_block yaml-usage "$(usage_text yaml)"
 replace_block kubeconfig-usage "$(usage_text kubeconfig)"

@@ -2,3 +2,4 @@
 .vscode
 /*.kubeconfig
 /*.yaml
+/readonly-kubernetes-service-account
